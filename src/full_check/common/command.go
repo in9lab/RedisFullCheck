@@ -69,7 +69,31 @@ func ParseClusterNode(content []byte) []*ClusterNodeInfo {
 
 		items := bytes.Split(line, []byte(" "))
 
-		address := bytes.Split(items[1], []byte{'@'})
+		// address := bytes.Split(items[1], []byte{'@'})
+		// 修改地址解析逻辑
+		var nodeAddr string
+		addrParts := bytes.Split(items[1], []byte{','})
+		if len(addrParts) > 1 {
+			// 如果有逗号，使用逗号后的域名地址
+			// 但需要保留原始端口
+			ipPortParts := bytes.Split(addrParts[0], []byte{':'})
+			if len(ipPortParts) > 1 {
+				port := ipPortParts[1]
+				// 如果端口包含@，只取@前面的部分
+				if idx := bytes.Index(port, []byte{'@'}); idx >= 0 {
+					port = port[:idx]
+				}
+				// 组合域名和端口
+				nodeAddr = string(addrParts[1]) + ":" + string(port)
+			} else {
+				nodeAddr = string(addrParts[1])
+			}
+		} else {
+			// 原来的逻辑：取@前面的部分
+			address := bytes.Split(items[1], []byte{'@'})
+			nodeAddr = string(address[0])
+		}
+
 		flag := bytes.Split(items[2], []byte{','})
 		var role string
 		if len(flag) > 1 {
@@ -83,7 +107,7 @@ func ParseClusterNode(content []byte) []*ClusterNodeInfo {
 		}
 		ret = append(ret, &ClusterNodeInfo{
 			Id:          string(items[0]),
-			Address:     string(address[0]),
+			Address:     nodeAddr,
 			Flags:       role,
 			Master:      string(items[3]),
 			PingSent:    string(items[4]),
@@ -101,8 +125,8 @@ func ClusterNodeChoose(input []*ClusterNodeInfo, role string) []*ClusterNodeInfo
 	ret := make([]*ClusterNodeInfo, 0, len(input))
 	for _, ele := range input {
 		if ele.Flags == TypeMaster && role == TypeMaster ||
-				ele.Flags == TypeSlave && role == TypeSlave ||
-				role == TypeAll {
+			ele.Flags == TypeSlave && role == TypeSlave ||
+			role == TypeAll {
 			ret = append(ret, ele)
 		}
 	}
